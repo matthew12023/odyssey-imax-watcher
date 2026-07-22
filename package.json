@@ -1,0 +1,10 @@
+{
+  "name": "odyssey-imax-watcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloud watcher for the Vue Printworks Odyssey 70mm IMAX booking page — sends push + email alerts when new showtimes appear.",
+  "dependencies": {
+    "playwright": "^1.47.0",
+    "nodemailer": "^6.9.14"
+  }
+}
