@@ -34,6 +34,15 @@ jobs:
           ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
         run: node watch.js
 
+      - name: Upload debug screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshot
+          path: debug.png
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Save updated snapshot
         run: |
           git config user.name "odyssey-watcher-bot"

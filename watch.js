@@ -29,14 +29,41 @@ function saveState(state) {
 }
 
 async function scrape(url) {
-  const browser = await chromium.launch();
+  // Sites like this often fingerprint headless/datacenter browsers and quietly
+  // serve a stripped page instead of erroring, so we make this look like an
+  // ordinary desktop Chrome session rather than default Playwright.
+  const browser = await chromium.launch({
+    args: ["--disable-blink-features=AutomationControlled"]
+  });
   try {
-    const page = await browser.newPage();
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 900 },
+      locale: "en-GB"
+    });
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+    });
+    const page = await context.newPage();
     // "networkidle" times out on this site — it never goes fully quiet
     // (analytics/polling keep firing), so wait for the DOM instead and
     // give the client-side render its own settle time below.
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    console.log("Navigation status:", response && response.status());
     await page.waitForTimeout(5000); // let client-side rendering settle
+
+    // The cookie-consent banner sits on top of the showtimes; dismiss it in
+    // case it's intercepting anything or the site defers content behind it.
+    const rejectCookies = page.getByRole("button", { name: /reject all/i });
+    if (await rejectCookies.isVisible().catch(() => false)) {
+      await rejectCookies.click().catch(() => {});
+      await page.waitForTimeout(1000);
+    }
+
+    // Always saved so a bad run can be inspected as a workflow artifact
+    // instead of guessing blind at why the item count is 0.
+    await page.screenshot({ path: "debug.png" }).catch(() => {});
 
     const items = await page.evaluate(() => {
       const timeRegex = /\b([01]?\d|2[0-3])[:.]\d{2}\s?(am|pm)?\b/i;
