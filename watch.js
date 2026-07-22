@@ -32,8 +32,11 @@ async function scrape(url) {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-    await page.waitForTimeout(3000); // let client-side rendering settle
+    // "networkidle" times out on this site — it never goes fully quiet
+    // (analytics/polling keep firing), so wait for the DOM instead and
+    // give the client-side render its own settle time below.
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForTimeout(5000); // let client-side rendering settle
 
     const items = await page.evaluate(() => {
       const timeRegex = /\b([01]?\d|2[0-3])[:.]\d{2}\s?(am|pm)?\b/i;
