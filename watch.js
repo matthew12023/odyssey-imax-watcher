@@ -1,9 +1,10 @@
 // Odyssey IMAX Watcher — cloud version
 // Runs headless in GitHub Actions on a schedule, independent of any laptop.
 // Renders the Vue booking page (it's JS-rendered, so a plain HTTP fetch won't
-// show showtimes), diffs against the last known snapshot, and if something
-// new or newly-bookable appears, sends a push notification (ntfy.sh) and an
-// email (via Gmail SMTP).
+// show showtimes), diffs against the last known snapshot, and if a screening
+// appears that wasn't there before, sends a push notification (ntfy.sh) and
+// an email (via Gmail SMTP). Sold-out/bookable status changes on screenings
+// we've already seen are ignored — only brand-new screenings trigger alerts.
 
 const { chromium } = require("playwright");
 const fs = require("fs");
@@ -61,13 +62,10 @@ async function scrape(url) {
 }
 
 function diff(prevItems, currItems) {
-  const newlyBookable = [];
-  for (const item of currItems) {
-    const prevMatch = prevItems.find((p) => p.label === item.label);
-    const wasBookableBefore = prevMatch ? prevMatch.bookable : false;
-    if (item.bookable && !wasBookableBefore) newlyBookable.push(item.label);
-  }
-  return newlyBookable;
+  const prevLabels = new Set(prevItems.map((p) => p.label));
+  return currItems
+    .filter((item) => !prevLabels.has(item.label))
+    .map((item) => item.label);
 }
 
 async function sendPush(message) {
@@ -82,7 +80,7 @@ async function sendPush(message) {
       {
         method: "POST",
         headers: {
-          Title: "Odyssey IMAX - new tickets!",
+          Title: "Odyssey IMAX - new screening added!",
           Priority: "urgent",
           Tags: "ticket"
         }
@@ -111,7 +109,7 @@ async function sendEmail(message) {
   await transporter.sendMail({
     from: GMAIL_USER,
     to: ALERT_EMAIL_TO,
-    subject: "Odyssey IMAX - new tickets available!",
+    subject: "Odyssey IMAX - new screening added!",
     text: `${message}\n\n${TARGET_URL}`
   });
 }
@@ -119,16 +117,16 @@ async function sendEmail(message) {
 (async () => {
   const state = loadState();
   const items = await scrape(TARGET_URL);
-  const newlyBookable = diff(state.items, items);
+  const newScreenings = diff(state.items, items);
 
   console.log(`Scraped ${items.length} showtime item(s).`);
 
-  if (newlyBookable.length > 0) {
-    const message = `New/bookable: ${newlyBookable.join(", ")}`;
+  if (newScreenings.length > 0) {
+    const message = `New screening(s) added: ${newScreenings.join(", ")}`;
     console.log("ALERT:", message);
     await Promise.all([sendPush(message), sendEmail(message)]);
   } else {
-    console.log("No change since last check.");
+    console.log("No new screenings since last check.");
   }
 
   saveState({ items, checkedAt: new Date().toISOString() });

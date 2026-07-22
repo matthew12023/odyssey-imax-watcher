@@ -1,8 +1,9 @@
 # Odyssey IMAX Watcher — Cloud version (push + email, works with your laptop off)
 
 This runs on GitHub's servers on a schedule, so it keeps checking even when
-your laptop is closed. When it spots a new or newly-bookable showtime for
-The Odyssey 70mm IMAX at Vue Printworks, it:
+your laptop is closed. When a brand-new screening for The Odyssey 70mm IMAX
+at Vue Printworks appears on the page (not just an existing one changing
+sold-out status), it:
 
 - Sends a push notification to your phone (via the free **ntfy** app)
 - Emails you (via your own Gmail account)
